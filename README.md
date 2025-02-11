@@ -6,4 +6,10 @@ You will be prompted to enter the time interval first. A time interval is a comb
 
 Afterwards, you will be prompted to enter a start datetime and an end datetime in the format YYYY-MM-DD. These hyphens are necessary to include in the input. Once again, should your input be invalid, you will be prompted to re-enter a valid time interval.
 
-It is assumed that when entering the start and end datetime, you are entering datetimes that fall within the range covered by the scrapped data. It is also assumed that the start datetime entered is chronologically before the end datetime entered.
+# Assumptions:
+
+It is assumed that when entering the start and end datetime, you are entering datetimes that fall within the range 2024-09-16 to 2024-09-20. It's assumed that the times you will enter are between 09:30 and 21:00. It is also assumed that the start datetime entered is chronologically before the end datetime entered.
+
+# Limitations:
+
+This current model does not account for times when the market is closed (e.g. after 21:00 and before 09:30).

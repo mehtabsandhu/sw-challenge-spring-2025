@@ -185,40 +185,8 @@ def grab_timeframe():
   return timeframe
 
 
-def generate_timeframe_intervals(time_intervals, timeframes):
-  """
-  Generates a list containing the start and end datetime for each interval for the ohlcv bars.
-
-  :param time_intervals: a dictionary of the interval values for minute, second, hour, and day
-  :param timeframes: a dictionary containing the start and end datetime for generating the ohlcv
-  :return: a list containing the start and end datetime for each interval for the ohlcv bars.
-  """
-
-  # Stores all the timeframe intervals in a list to be returned.
-  # Each entry in the list stores the start and end datetime for the interval
-  timeframe_interval_list = []
-
-  # A tracker for the current timeframe (a datetime object)
-  current_timeframe = timeframes['start']
-
-  # Loops through until the current datetime tracker exceeds the end datetime
-  while current_timeframe < timeframes['end']:
-    # This list to add will contain the start datetime of the interval in the first index
-    #   and the end datetime of the interval in the second index
-    list_to_add = [current_timeframe]
-    current_timeframe = current_timeframe + timedelta(seconds=time_intervals['s'], minutes=time_intervals['m'], hours=time_intervals['h'], days=time_intervals['d'])
-    list_to_add.append(current_timeframe)
-    timeframe_interval_list.append(list_to_add)
-  
-  timeframe_interval_list[-1][1] = timeframes['end']
-
-  return timeframe_interval_list
-
-
-def generate_ohlcv(list_of_data, timeframe_interval):
-  """
-  Generates the ohlcv data from the given list of data
-  """
+def generate_ohlcv(list_of_data, timeframe, time_intervals):
+  ohlcv_list = []
 
   start_index = 0
 
@@ -230,36 +198,40 @@ def generate_ohlcv(list_of_data, timeframe_interval):
   foundMid = False
   while left <= right:
     mid = left + (right - left) // 2
-    if list_of_data[mid][0] == timeframe_interval[0]:
+    if list_of_data[mid][0] == timeframe['start']:
       start_index = mid
       foundMid = True
-    elif list_of_data[mid][0] < timeframe_interval[0]:
+    elif list_of_data[mid][0] < timeframe['start']:
       left = mid + 1
     else:
       right = mid - 1
   if not foundMid:
     start_index = mid
 
-  print("found index")
-  # This is the ohlcv bar data. 
-  ohlcv = [
-    timeframe_interval[0],   # Timestamp
-    list_of_data[start_index][1],  # Open
-    list_of_data[start_index][1],  # High
-    list_of_data[start_index][1],  # Low
-    None, # Close
-    0,    # Volume
-  ]
+  last_timeframe = timeframe['start']
 
-  # Loops through all subsequent records, and sets the high, low, close, and volume
-  while start_index < len(list_of_data) and list_of_data[start_index][0] < timeframe_interval[1]:
-    ohlcv[2] = max(ohlcv[1], list_of_data[start_index][1]) # High
-    ohlcv[3] = min(ohlcv[2], list_of_data[start_index][1]) # Low
-    ohlcv[5] += list_of_data[start_index][2]               # Volume
-    start_index += 1
-  ohlcv[4] = list_of_data[start_index - 1][1] # Close
-  print('generated ohlcv')
-  return ohlcv
+  while last_timeframe < timeframe['end'] and start_index < len(list_of_data):
+    # This is the ohlcv bar data. 
+    ohlcv = [
+      last_timeframe,   # Timestamp
+      list_of_data[start_index][1],  # Open
+      list_of_data[start_index][1],  # High
+      list_of_data[start_index][1],  # Low
+      None, # Close
+      0,    # Volume
+    ]
+    # Loops through all subsequent records, and sets the high, low, close, and volume
+    while start_index < len(list_of_data) and list_of_data[start_index][0] < (last_timeframe + timedelta(days=time_intervals['d'], hours=time_intervals['h'], minutes=time_intervals['m'], seconds=time_intervals['s'])):
+      ohlcv[2] = max(ohlcv[1], list_of_data[start_index][1]) # High
+      ohlcv[3] = min(ohlcv[2], list_of_data[start_index][1]) # Low
+      ohlcv[5] += list_of_data[start_index][2]               # Volume
+      start_index += 1
+    ohlcv[4] = list_of_data[start_index - 1][1] # Close
+
+    ohlcv_list.append(ohlcv)
+    last_timeframe = last_timeframe + timedelta(days=time_intervals['d'], hours=time_intervals['h'], minutes=time_intervals['m'], seconds=time_intervals['s'])
+    
+  return ohlcv_list
 
 
 def generate_flat_file(ohlcv_list, timeframe, time_intervals):
@@ -306,27 +278,9 @@ def main():
   time_intervals = grab_time_interval()
   timeframe = grab_timeframe()
 
-  # Generates the timeframe intervals to create the OHLCV records.
-  timeframe_intervals = generate_timeframe_intervals(time_intervals, timeframe)
+  # Creates the ohlcv bar list
+  ohlcv_list = generate_ohlcv(data_list, timeframe, time_intervals)
 
-  # Creates a pool of processes to run the script in parallel (one process per CPU core).
-  ohlcv_pool = multiprocessing.Pool(processes=os.cpu_count())
-
-  # Creates a partial function to pass the data_list to the generate_ohlcv function.
-  # This is required to use ohlcv_pool.map() afterwards
-  generate_ohlcv_partial = partial(generate_ohlcv, data_list)
-
-  # Generates the OHLCV records for each timeframe interval.
-  ohlcv_list = ohlcv_pool.map(generate_ohlcv_partial, timeframe_intervals)
-
-  # Closes the pool of processes, and waits for them to finish.
-  ohlcv_pool.close()
-  ohlcv_pool.join()
-
-  # Prints the OHLCV records.
-  for ohlcv in ohlcv_list:
-    print(ohlcv)
-  
   # Creates the csv flat file containing the ohlcv bars
   generate_flat_file(ohlcv_list, timeframe, time_intervals)
   
