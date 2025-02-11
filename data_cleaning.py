@@ -1,4 +1,4 @@
-# These are the 5 libraries that are used in this script.
+# These are the 6 libraries that are used in this script.
 import csv
 import os
 from datetime import datetime, timedelta
@@ -8,6 +8,15 @@ from functools import partial
 
 
 def load_data(directory):
+  """
+  Loads all the rows from a provided csv file into a list
+  Skips over rows that contain empty (missing) data
+  Also ensures that no data is loaded from the wrong day
+
+  :param directory: the name of the csv file in the 'data' folder
+  :return: a list containing all the rows in the provided csv file
+  """
+
   # An empty list to store the data from the file.
   data_list = []
 
@@ -35,6 +44,16 @@ def load_data(directory):
 
 
 def clean_data(data_list):
+  """
+  Cleans up the data from the provided list of stock ticker entries
+  The timestamps are converted to datetime format, the prices are converted to floats, and the sizes are converted to ints
+  If the price is negative, the sign is changed to positive
+  If the price is an outlier, likely due to a misplaced decimal point (e.g. 41.72 instead of 417.2), multiplies by 10 to correct
+
+  :param data_list: a raw list of stock ticker entries to be cleaned
+  :return: the cleaned up list of stock ticker entries
+  """
+
   # Loops through all the items in the list, cleaning it up.
   for item_index in range(len(data_list)):
 
@@ -59,11 +78,19 @@ def clean_data(data_list):
 
 
 def remove_duplicates(data_list):
+  """
+  Within some lists, there may be duplicate entries that have the same timestamp, yet differing prices and sizes
+  In this case, we will keep the entry with the larger size (volume), and delete the other
+
+  :param data_list: the list of stocker ticker entries that may contain duplicates
+  :return: a list of stocker ticker entries that doesn't contain any duplicate timestamp entries
+  """
+
   # Loops through the list index by index from the back to the front.
   index = len(data_list) - 1
-  while index >= 0:
+  while index > 0:
 
-    # If the timestamp and price are the same, remove the item with the smaller size.
+    # If the timestamps are the same, remove the item with the smaller size (volume).
     if data_list[index][0] == data_list[index - 1][0]:
       if data_list[index][2] > data_list[index - 1][2]:
         del data_list[index - 1]
@@ -76,26 +103,37 @@ def remove_duplicates(data_list):
 
 
 def grab_time_interval():
+
+  # Stores a boolean indicating whether the user's input is valid
   valid_input = False
+  # Stores the interval values for 'second', 'minute', 'hour', and 'day' in this dictionary
   smhd = {}
+  # Prompts the user to input a time interval until a valid is provided
   while not valid_input:
     time_interval = input("Enter the desired time interval: ").lower()
-    char_index = 0
-    current_index = 0
-    smhd = {}
+    char_index = 0    # To store the index of the last char
+    current_index = 0 # To store the current index we are iterating through
+    smhd = {}         # Resets the dictionary to an empty one
     for char in time_interval:
+      # If the current character isn't an integer, or isn't 's', 'm', 'h', or 'd' to indicate time intervals,
+      # prompts user to input time interval again
       if char not in 'smhd0123456789':
         print("Invalid input. Please enter a valid time interval.")
         valid_input = False
         break
       if char in 'smhd':
+        # if the valid letter character is the first character in the string, or doesn't come directly after an integer,
+        # prompts user to input time interval again
         if current_index == 0 or current_index == char_index:
           print("Invalid input. Please enter a valid time interval.")
           valid_input = False
           break
+        # else if the valid letter character comes after integer(s), sets the interval value as the numbers that come before it
+        # The char_index is also incremented accordingly
         valid_input = True
         smhd[char] = int(time_interval[char_index:current_index])
         char_index = current_index + 1
+      # the current_index is incremented regardless of the character
       current_index += 1
   if 's' not in smhd:
     smhd['s'] = 0
@@ -223,9 +261,6 @@ def main():
 
   # Generates the timeframe intervals to create the OHLCV records.
   timeframe_intervals = generate_timeframe_intervals(time_intervals, timeframe)
-
-  # print(timeframe['start'].year + timeframe['start'].month + timeframe['start'].day)
-  # print(str(timeframe['start'])[:11] + str(timeframe['end'])[:11])
 
   # Creates a pool of processes to run the script in parallel (one process per CPU core).
   ohlcv_pool = multiprocessing.Pool(processes=os.cpu_count())
