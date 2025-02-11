@@ -1,6 +1,6 @@
 # How to use this data processing interface
 
-After running the main file, allow a couple seconds for the program to process the csv files.
+After running the **data_cleaning.py** file, allow a couple seconds for the program to process the csv files.
 
 You will be prompted to enter the time interval first. A time interval is a combination of days, hours, minutes, and seconds. A valid input can consist of integers, and the letters 'd' for days, 'h' for hours, 'm' for minutes, and 's' for seconds. There can be no other characters or spaces, and each letter must have numbers preceeding it. Should your input be invalid, you will be prompted to re-enter a valid time interval.
 
