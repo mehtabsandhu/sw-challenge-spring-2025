@@ -103,17 +103,24 @@ def remove_duplicates(data_list):
 
 
 def grab_time_interval():
+  """
+  Grabs the user-inputted time intervals for the ohlcv bars.
+  Validates input, and has user re-enter in the case of invalid input
+
+  :return: a dictionary containing the time interval values for seconds (s), minutes (m), hours (h), and days (d)
+  """
 
   # Stores a boolean indicating whether the user's input is valid
   valid_input = False
   # Stores the interval values for 'second', 'minute', 'hour', and 'day' in this dictionary
-  smhd = {}
+  # The default value is 0
+  smhd = {'s':0, 'm':0, 'h':0, 'd':0}
   # Prompts the user to input a time interval until a valid is provided
   while not valid_input:
     time_interval = input("Enter the desired time interval: ").lower()
     char_index = 0    # To store the index of the last char
     current_index = 0 # To store the current index we are iterating through
-    smhd = {}         # Resets the dictionary to an empty one
+    smhd = {'s':0, 'm':0, 'h':0, 'd':0}         # Resets the dictionary to the default
     for char in time_interval:
       # If the current character isn't an integer, or isn't 's', 'm', 'h', or 'd' to indicate time intervals,
       # prompts user to input time interval again
@@ -135,22 +142,26 @@ def grab_time_interval():
         char_index = current_index + 1
       # the current_index is incremented regardless of the character
       current_index += 1
-  if 's' not in smhd:
-    smhd['s'] = 0
-  if 'm' not in smhd:
-    smhd['m'] = 0
-  if 'h' not in smhd:
-    smhd['h'] = 0
-  if 'd' not in smhd:
-    smhd['d'] = 0
+      
   return smhd
 
 
 def grab_timeframe():
+  """
+  Grabs the start and end timeframe for the ohlcv bars from the user.
+  Validates input, and has user re-enter in the case of invalid input
+
+  :return: dictionary containing the start and end timeframes
+  """
+
+  # Boolean values to indicate whether the user's input was correct or not
   valid_start = False
   valid_end = False
+  # The timeframes will be stored in the following dictionary and returned to the user
   timeframe = {}
 
+  # Has the user input the start date in the YYYY-MM-DD format.
+  # If invalid input, prompts user to re-enter the date
   while not valid_start:
     start_date = input("Enter the start datetime in the following format (YYYY-MM-DD): ")
     try:
@@ -160,6 +171,8 @@ def grab_timeframe():
     except ValueError:
       print("Invalid input. Please enter a valid date.")
   
+  # Has the user input the end date in the YYYY-MM-DD format.
+  # If invalid input, prompts user to re-enter the date
   while not valid_end:
     end_date = input("Enter the end datetime in the following format (YYYY-MM-DD): ")
     try:
@@ -173,11 +186,25 @@ def grab_timeframe():
 
 
 def generate_timeframe_intervals(time_intervals, timeframes):
+  """
+  Generates a list containing the start and end datetime for each interval for the ohlcv bars.
+
+  :param time_intervals: a dictionary of the interval values for minute, second, hour, and day
+  :param timeframes: a dictionary containing the start and end datetime for generating the ohlcv
+  :return: a list containing the start and end datetime for each interval for the ohlcv bars.
+  """
+
+  # Stores all the timeframe intervals in a list to be returned.
+  # Each entry in the list stores the start and end datetime for the interval
   timeframe_interval_list = []
 
+  # A tracker for the current timeframe (a datetime object)
   current_timeframe = timeframes['start']
 
+  # Loops through until the current datetime tracker exceeds the end datetime
   while current_timeframe < timeframes['end']:
+    # This list to add will contain the start datetime of the interval in the first index
+    #   and the end datetime of the interval in the second index
     list_to_add = [current_timeframe]
     current_timeframe = current_timeframe + timedelta(seconds=time_intervals['s'], minutes=time_intervals['m'], hours=time_intervals['h'], days=time_intervals['d'])
     list_to_add.append(current_timeframe)
@@ -189,16 +216,20 @@ def generate_timeframe_intervals(time_intervals, timeframes):
 
 
 def generate_ohlcv(list_of_data, timeframe_interval):
+  """
+  Generates the ohlcv data from the given list of data
+  """
+
   start_index = 0
 
+  # Searches for the starting index of the start timeframe using binary search (as the data is sorted by timestamp)
+  # This index is then stored in the start_index variable
   left = 0
   right = len(list_of_data) - 1
   mid = 0
   foundMid = False
-
   while left <= right:
     mid = left + (right - left) // 2
-
     if list_of_data[mid][0] == timeframe_interval[0]:
       start_index = mid
       foundMid = True
@@ -206,10 +237,11 @@ def generate_ohlcv(list_of_data, timeframe_interval):
       left = mid + 1
     else:
       right = mid - 1
-  
   if not foundMid:
     start_index = mid
 
+  print("found index")
+  # This is the ohlcv bar data. 
   ohlcv = [
     timeframe_interval[0],   # Timestamp
     list_of_data[start_index][1],  # Open
@@ -219,24 +251,39 @@ def generate_ohlcv(list_of_data, timeframe_interval):
     0,    # Volume
   ]
 
+  # Loops through all subsequent records, and sets the high, low, close, and volume
   while start_index < len(list_of_data) and list_of_data[start_index][0] < timeframe_interval[1]:
     ohlcv[2] = max(ohlcv[1], list_of_data[start_index][1]) # High
     ohlcv[3] = min(ohlcv[2], list_of_data[start_index][1]) # Low
     ohlcv[5] += list_of_data[start_index][2]               # Volume
     start_index += 1
-  
   ohlcv[4] = list_of_data[start_index - 1][1] # Close
-
+  print('generated ohlcv')
   return ohlcv
 
 
-def generate_flat_file(ohlcv_list, timeframe):
+def generate_flat_file(ohlcv_list, timeframe, time_intervals):
+  """
+  Creates a csv file in the directory 'ohlcv_flat_files' containing the ohlcv bars
+  The file is formatted as such: 'ohlcv_{start_timeframe}_{end_timeframe}_{time_intervals}',
+    with time_intervals being represented as days, hours, minutes, and seconds
+  """
+
+  # Creates a directory to hold the flat files if it doesn't exist
   os.makedirs('ohlcv_flat_files', exist_ok=True)
-  with open(os.path.join('ohlcv_flat_files', 'ohlcv_{start}_{end}.csv'.format(start=str(timeframe['start'])[:10], end=str(timeframe['end'])[:10])), 'w', newline='') as f:
+  # Creates a new csv file with its name based on the provided timeframe and time intervals
+  with open(os.path.join('ohlcv_flat_files', 'ohlcv_{start}_{end}_{day}d{hour}h{min}m{sec}s.csv'.format(
+    start=str(timeframe['start'])[:10], 
+    end=str(timeframe['end'])[:10],
+    day=str(time_intervals['d']),
+    hour=str(time_intervals['h']),
+    min=str(time_intervals['m']),
+    sec=str(time_intervals['s']))), 'w', newline='') as f:
+    
+    # Writes the ohlcv bars to the csv file
     writer = csv.writer(f)
     writer.writerow(['Timestamp', 'Open', 'High', 'Low', 'Close', 'Volume'])
-    for ohlcv in ohlcv_list:
-      writer.writerow(ohlcv)
+    writer.writerows(ohlcv_list)
   
 
 def main():
@@ -281,7 +328,7 @@ def main():
     print(ohlcv)
   
   # Creates the csv flat file containing the ohlcv bars
-  generate_flat_file(ohlcv_list, timeframe)
+  generate_flat_file(ohlcv_list, timeframe, time_intervals)
   
 
 if __name__ == '__main__':
